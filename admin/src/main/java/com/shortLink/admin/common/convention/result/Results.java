@@ -40,8 +40,8 @@ public final class Results {
                 .orElse(BaseErrorCode.SERVICE_ERROR.code());
         String errorMessage = Optional.ofNullable(abstractException.getErrorMessage())
                 .orElse(BaseErrorCode.SERVICE_ERROR.message());
-        return new Result<Void>().setCode(abstractException.getErrorCode())
-                .setMessage(abstractException.getErrorMessage());
+        return new Result<Void>().setCode(errorCode)
+                .setMessage(errorMessage);
     }
 
      /**
