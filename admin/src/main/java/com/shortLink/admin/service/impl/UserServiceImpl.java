@@ -12,9 +12,12 @@ import com.shortLink.admin.dto.resp.UserRespDTO;
 import com.shortLink.admin.service.UserService;
 import lombok.AllArgsConstructor;
 import org.redisson.api.RBloomFilter;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
+import static com.shortLink.admin.common.constant.RedisCacheConstant.LOCK_USER_REGISTER_KEY;
 import static com.shortLink.admin.common.enums.UserErrorCodeEnum.*;
 
 /**
@@ -25,6 +28,7 @@ import static com.shortLink.admin.common.enums.UserErrorCodeEnum.*;
 public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements UserService {
 
     private final RBloomFilter<String> bloomFilter;
+    private final RedissonClient redissonClient;
 
     /**
      * 根据用户名查询用户信息
@@ -57,18 +61,38 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
 
     /**
      * 用户注册功能
+     * 
      * @param requestParm 用户注册请求参数对象，包含用户名、密码等信息
      * @throws ClientException 当用户已存在或保存失败时抛出异常
      */
     @Override
     public void register(UserRegisterReqDTO requestParm) {
+        // 检查用户名是否可用
         if(!availableUsername(requestParm.getUsername())) {
             throw new ClientException(USER_EXIST);
         }
-        int insert = baseMapper.insert(BeanUtil.toBean(requestParm,UserDO.class));
-        if (insert < 1) {
-            throw new ClientException(USER_SAVE_ERROR);
+        // 使用Redis分布式锁防止并发注册
+        RLock lock = redissonClient.getLock(LOCK_USER_REGISTER_KEY + requestParm.getUsername());
+        try{
+            if (lock.tryLock()) {
+                // 加锁后再次查库，确保用户名唯一
+                Long count = this.lambdaQuery().eq(UserDO::getUsername, requestParm.getUsername()).count();
+                if (count != null && count > 0) {
+                    throw new ClientException(USER_EXIST);
+                }
+                int insert = baseMapper.insert(BeanUtil.toBean(requestParm, UserDO.class));
+                if (insert < 1) {
+                    throw new ClientException(USER_SAVE_ERROR);
+                }
+                bloomFilter.add(requestParm.getUsername());
+                return; // 注册成功直接返回
+            } else {
+                // 获取锁失败，抛出用户已存在异常
+                throw new ClientException(USER_EXIST);
+            }
+        }finally {
+            // 释放锁
+            lock.unlock();
         }
-        bloomFilter.add(requestParm.getUsername());
     }
 }
