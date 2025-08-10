@@ -9,6 +9,8 @@ import com.shortLink.admin.dao.entity.UserDO;
 import com.shortLink.admin.dao.mapper.UserMapper;
 import com.shortLink.admin.dto.resp.UserRespDTO;
 import com.shortLink.admin.service.UserService;
+import lombok.AllArgsConstructor;
+import org.redisson.api.RBloomFilter;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +18,10 @@ import org.springframework.stereotype.Service;
  * 用户信息服务实现类
  */
 @Service
+@AllArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements UserService {
+
+    private final RBloomFilter<String> bloomFilter;
 
     /**
      * 根据用户名查询用户信息
@@ -37,5 +42,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         return result;
 
 
+    }
+
+    /**
+     * 检查用户名是否存在
+     * @param username 用户名
+     * @return 用户名存在返回true，否则返回false
+     */
+    @Override
+    public Boolean hasUsername(String username) {
+        return bloomFilter.contains(username);
     }
 }
