@@ -1,18 +1,21 @@
 package com.shortLink.admin.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.admin.common.convention.exception.ClientException;
-import com.shortLink.admin.common.enums.UserErrorCodeEnum;
 import com.shortLink.admin.dao.entity.UserDO;
 import com.shortLink.admin.dao.mapper.UserMapper;
+import com.shortLink.admin.dto.req.UserRegisterReqDTO;
 import com.shortLink.admin.dto.resp.UserRespDTO;
 import com.shortLink.admin.service.UserService;
 import lombok.AllArgsConstructor;
 import org.redisson.api.RBloomFilter;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+
+import static com.shortLink.admin.common.enums.UserErrorCodeEnum.*;
 
 /**
  * 用户信息服务实现类
@@ -35,22 +38,37 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
                 .eq(UserDO::getUsername,username);
         UserDO userDO = baseMapper.selectOne(queryWrapper);
         if (userDO == null) {
-            throw new ClientException(UserErrorCodeEnum.USER_NULL);
+            throw new ClientException(USER_NULL);
         }
         UserRespDTO result = new UserRespDTO();
         BeanUtils.copyProperties(userDO,result);
         return result;
-
-
     }
 
     /**
-     * 检查用户名是否存在
+     * 检查用户名是否可用
      * @param username 用户名
-     * @return 用户名存在返回true，否则返回false
+     * @return 用户名可用返回true，否则返回false
      */
     @Override
-    public Boolean hasUsername(String username) {
-        return bloomFilter.contains(username);
+    public Boolean availableUsername(String username) {
+        return !bloomFilter.contains(username);
+    }
+
+    /**
+     * 用户注册功能
+     * @param requestParm 用户注册请求参数对象，包含用户名、密码等信息
+     * @throws ClientException 当用户已存在或保存失败时抛出异常
+     */
+    @Override
+    public void register(UserRegisterReqDTO requestParm) {
+        if(!availableUsername(requestParm.getUsername())) {
+            throw new ClientException(USER_EXIST);
+        }
+        int insert = baseMapper.insert(BeanUtil.toBean(requestParm,UserDO.class));
+        if (insert < 1) {
+            throw new ClientException(USER_SAVE_ERROR);
+        }
+        bloomFilter.add(requestParm.getUsername());
     }
 }

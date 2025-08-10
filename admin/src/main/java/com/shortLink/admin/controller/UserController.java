@@ -3,14 +3,12 @@ package com.shortLink.admin.controller;
 import cn.hutool.core.bean.BeanUtil;
 import com.shortLink.admin.common.convention.result.Result;
 import com.shortLink.admin.common.convention.result.Results;
+import com.shortLink.admin.dto.req.UserRegisterReqDTO;
 import com.shortLink.admin.dto.resp.UserActualRespDTO;
 import com.shortLink.admin.dto.resp.UserRespDTO;
 import com.shortLink.admin.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 
 @RestController
@@ -37,11 +35,19 @@ public class UserController {
     }
 
     /**
-     * 检查用户名是否存在
+     * 检查用户名是否可用
      */
-    @GetMapping("/api/shortLinke/v1/user/has-username")
-    public Result<Boolean> hasUsername(@RequestParam("username") String username) {
-        return Results.success(userService.hasUsername(username));
+    @GetMapping("/api/shortLink/v1/user/has-username")
+    public Result<Boolean> availableUsername(@RequestParam("username") String username) {
+        return Results.success(userService.availableUsername(username));
     }
 
+    /**
+     * 注册用户
+     */
+    @PostMapping("/api/shortLink/v1/user/register")
+    public Result<Void> register(@RequestBody UserRegisterReqDTO requestParm) {
+        userService.register(requestParm);
+        return Results.success();
+    }
 }
