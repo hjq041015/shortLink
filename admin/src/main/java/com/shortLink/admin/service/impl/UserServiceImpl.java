@@ -2,12 +2,14 @@ package com.shortLink.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.admin.common.convention.exception.ClientException;
 import com.shortLink.admin.dao.entity.UserDO;
 import com.shortLink.admin.dao.mapper.UserMapper;
 import com.shortLink.admin.dto.req.UserRegisterReqDTO;
+import com.shortLink.admin.dto.req.UserUpdateReqDTO;
 import com.shortLink.admin.dto.resp.UserRespDTO;
 import com.shortLink.admin.service.UserService;
 import lombok.AllArgsConstructor;
@@ -51,6 +53,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
 
     /**
      * 检查用户名是否可用
+     *
      * @param username 用户名
      * @return 用户名可用返回true，否则返回false
      */
@@ -94,5 +97,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
             // 释放锁
             lock.unlock();
         }
+    }
+
+    /**
+     * 更新用户信息
+     *
+     * @param requestParm 用户信息更新请求参数
+     */
+    @Override
+    public void update(UserUpdateReqDTO requestParm) {
+        // TODO 验证当前用户名是否为登录用户
+        LambdaUpdateWrapper<UserDO> updateWrapper = Wrappers.lambdaUpdate(UserDO.class)
+                .eq(UserDO::getUsername, requestParm.getUsername());
+        this.baseMapper.update(BeanUtil.toBean(requestParm,UserDO.class),updateWrapper);
     }
 }
