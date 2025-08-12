@@ -1,14 +1,18 @@
 package com.shortLink.admin.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.admin.common.convention.exception.ClientException;
 import com.shortLink.admin.dao.entity.GroupDO;
 import com.shortLink.admin.dao.mapper.GroupMapper;
+import com.shortLink.admin.dto.req.ShortLinkGroupSaveReqDTO;
 import com.shortLink.admin.service.GroupService;
 import com.shortLink.admin.toolkit.RandomGenerator;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * 分组服务实现类，实现分组相关的业务逻辑
@@ -34,8 +38,25 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         GroupDO groupDO = GroupDO.builder()
                 .gid(gid)
                 .name(name)
+                .sortOrder(0)
                 .build();
         this.baseMapper.insert(groupDO);
+    }
+
+    /**
+     *
+     * 查询分组列表
+     * @return 分组列表
+     */
+    @Override
+    public List<ShortLinkGroupSaveReqDTO> queryGroup() {
+        LambdaQueryWrapper<GroupDO> query = Wrappers.lambdaQuery(GroupDO.class)
+                // TODO 从上下文获取用户名
+                .eq(GroupDO::getDelFlag, 0)
+                .isNull(GroupDO::getUsername)
+                .orderByDesc(GroupDO::getSortOrder, GroupDO::getUpdateTime);
+        List<GroupDO> groupList = this.baseMapper.selectList(query);
+        return BeanUtil.copyToList(groupList,ShortLinkGroupSaveReqDTO.class);
     }
 
     /**
