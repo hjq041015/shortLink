@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.admin.common.convention.exception.ClientException;
 import com.shortLink.admin.dao.entity.GroupDO;
 import com.shortLink.admin.dao.mapper.GroupMapper;
+import com.shortLink.admin.dto.req.GroupSortReqDTO;
 import com.shortLink.admin.dto.req.GroupUpdateReqDTO;
 import com.shortLink.admin.dto.req.ShortLinkGroupAddReqDTO;
 import com.shortLink.admin.service.GroupService;
@@ -62,6 +63,11 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         return BeanUtil.copyToList(groupList, ShortLinkGroupAddReqDTO.class);
     }
 
+    /**
+     * 修改分组名称
+     *
+     * @param requestParm 分组修改请求参数
+     */
     @Override
     public void updateGroup(GroupUpdateReqDTO requestParm) {
        LambdaUpdateWrapper<GroupDO> updateWrapper = Wrappers.lambdaUpdate(GroupDO.class)
@@ -72,6 +78,11 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
        this.baseMapper.update(null,updateWrapper);
     }
 
+    /**
+     * 删除分组
+     *
+     * @param gid 分组ID
+     */
     @Override
     public void deleteGroup(String gid) {
         LambdaUpdateWrapper<GroupDO> updateWrapper = Wrappers.lambdaUpdate(GroupDO.class)
@@ -80,6 +91,23 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         .eq(GroupDO::getDelFlag, 0)
         .set(GroupDO::getDelFlag,1);
         this.baseMapper.update(null,updateWrapper);
+    }
+
+    /**
+     * 分组排序
+     *
+     * @param requestParm 分组排序请求参数列表
+     */
+    @Override
+    public void sortGroup(List<GroupSortReqDTO> requestParm) {
+        requestParm.forEach(request-> {
+            LambdaUpdateWrapper<GroupDO> updateWrapper = Wrappers.lambdaUpdate(GroupDO.class)
+                    .eq(GroupDO::getUsername,UserContextHolder.getUsername())
+                    .eq(GroupDO::getGid,request.getGid())
+                    .eq(GroupDO::getDelFlag,0)
+                    .set(GroupDO::getSortOrder,request.getSortOrder());
+            this.baseMapper.update(null,updateWrapper);
+        });
     }
 
     /**
