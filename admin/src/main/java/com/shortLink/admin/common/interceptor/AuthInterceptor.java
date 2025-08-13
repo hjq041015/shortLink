@@ -25,16 +25,21 @@ public class AuthInterceptor implements WebMvcConfigurer {
         registry.addInterceptor(new SaInterceptor(handle -> {
             // 登录接口和注册接口不需要登录，这里不做处理
             // 其他接口都需要登录
-            SaRouter.match("/api/shortLink/v1/**", r -> StpUtil.checkLogin());
-        })).addPathPatterns("/api/shortLink/v1/**")
+            SaRouter.match("/api/shortLink/**", r -> StpUtil.checkLogin());
+        })).addPathPatterns("/api/shortLink/**")
           .excludePathPatterns(
-              "/api/shortLink/v1/user/login",
-              "/api/shortLink/v1/user/register",
-              "/api/shortLink/v1/user/has-username"
+              "/api/shortLink/admin/v1/user/login",
+              "/api/shortLink/admin/v1/user/register",
+              "/api/shortLink/admin/v1/user/has-username"
           );
         
         // 注册用户信息拦截器，用于从JWT中提取用户信息并存入阿里TTL中
         registry.addInterceptor(userInfoInterceptor())
-                .addPathPatterns("/api/shortLink/v1/**");
+        .addPathPatterns("/api/shortLink/**")
+        .excludePathPatterns(
+            "/api/shortLink/admin/v1/user/login",
+            "/api/shortLink/admin/v1/user/register",
+            "/api/shortLink/admin/v1/user/has-username"
+        );
     }
 }
