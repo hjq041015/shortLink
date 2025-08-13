@@ -1,9 +1,13 @@
 package com.shortLink.admin.common.web;
 
+import cn.dev33.satoken.exception.NotLoginException;
+import cn.dev33.satoken.exception.NotPermissionException;
+import cn.dev33.satoken.exception.NotRoleException;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.StrUtil;
 import com.shortLink.admin.common.convention.errorcode.BaseErrorCode;
 import com.shortLink.admin.common.convention.exception.AbstractException;
+import com.shortLink.admin.common.convention.exception.ClientException;
 import com.shortLink.admin.common.convention.result.Result;
 import com.shortLink.admin.common.convention.result.Results;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,6 +74,33 @@ public class GlobalExceptionHandler {
         return Results.failure();
     }
 
+    /**
+     * 处理Sa-Token未登录异常
+     */
+    @ExceptionHandler(NotLoginException.class)
+    public Result<Void> handleNotLoginException(NotLoginException e) {
+        log.warn("用户未登录: {}", e.getMessage());
+        throw new ClientException("用户未登录", BaseErrorCode.CLIENT_ERROR);
+    }
+
+    /**
+     * 处理Sa-Token无权限异常
+     */
+    @ExceptionHandler(NotPermissionException.class)
+    public Result<Void> handleNotPermissionException(NotPermissionException e) {
+        log.warn("用户无权限: {}", e.getMessage());
+        throw new ClientException("用户无权限", BaseErrorCode.CLIENT_ERROR);
+    }
+
+    /**
+     * 处理Sa-Token无角色异常
+     */
+    @ExceptionHandler(NotRoleException.class)
+    public Result<Void> handleNotRoleException(NotRoleException e) {
+        log.warn("用户无角色: {}", e.getMessage());
+        throw new ClientException("用户无角色", BaseErrorCode.CLIENT_ERROR);
+    }
+    
     /**
      * 获取请求完整 URL（包含 queryString）。
      * @param request 当前请求对象

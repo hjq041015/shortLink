@@ -1,5 +1,6 @@
 package com.shortLink.admin.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -15,16 +16,14 @@ import com.shortLink.admin.dto.req.UserUpdateReqDTO;
 import com.shortLink.admin.dto.resp.UserLoginRespDTO;
 import com.shortLink.admin.dto.resp.UserRespDTO;
 import com.shortLink.admin.service.UserService;
+import com.shortLink.admin.toolkit.PasswordEncoder;
+import com.shortLink.admin.toolkit.UserContextHolder;
 import lombok.AllArgsConstructor;
 import org.redisson.api.RBloomFilter;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import static com.shortLink.admin.common.constant.RedisCacheConstant.LOCK_USER_REGISTER_KEY;
 import static com.shortLink.admin.common.enums.UserErrorCodeEnum.*;
@@ -38,7 +37,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
 
     private final RBloomFilter<String> bloomFilter;
     private final RedissonClient redissonClient;
-    private final StringRedisTemplate stringRedisTemplate;
 
     /**
      * 根据用户名查询用户信息
@@ -80,7 +78,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
     public void register(UserRegisterReqDTO requestParm) {
         // 检查用户名是否可用
         if(!availableUsername(requestParm.getUsername())) {
-            throw new ClientException(USER_EXIST);
+            throw new ClientException(USER_NAME_EXIST);
         }
         // 使用Redis分布式锁防止并发注册
         RLock lock = redissonClient.getLock(LOCK_USER_REGISTER_KEY + requestParm.getUsername());
@@ -91,7 +89,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
                 if (count != null && count > 0) {
                     throw new ClientException(USER_EXIST);
                 }
-                int insert = baseMapper.insert(BeanUtil.toBean(requestParm, UserDO.class));
+                // 创建用户对象并设置加密密码
+                UserDO userDO = BeanUtil.toBean(requestParm, UserDO.class);
+                // 使用BCrypt加密密码
+                userDO.setPassword(PasswordEncoder.encrypt(requestParm.getPassword()));
+                
+                int insert = baseMapper.insert(userDO);
                 if (insert < 1) {
                     throw new ClientException(USER_SAVE_ERROR);
                 }
@@ -103,7 +106,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
             }
         }finally {
             // 释放锁
-            lock.unlock();
+            if(lock.isLocked() && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
     }
 
@@ -114,7 +119,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
      */
     @Override
     public void update(UserUpdateReqDTO requestParm) {
-        // TODO 验证当前用户名是否为登录用户
+        String loginUsername = UserContextHolder.getUsername();
+        if (!loginUsername.equals(requestParm.getUsername())) {
+            throw new ClientException("更新的不是当前用户");
+        }
         LambdaUpdateWrapper<UserDO> updateWrapper = Wrappers.lambdaUpdate(UserDO.class)
                 .eq(UserDO::getUsername, requestParm.getUsername());
         this.baseMapper.update(BeanUtil.toBean(requestParm,UserDO.class),updateWrapper);
@@ -128,43 +136,54 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
      */
     @Override
     public UserLoginRespDTO login(UserLoginReqDTO requestParm) {
+        // 根据用户名查询用户信息
         LambdaQueryWrapper<UserDO> queryWrapper = Wrappers.lambdaQuery(UserDO.class)
-                .eq(UserDO::getUsername,requestParm.getUsername())
-                .eq(UserDO::getPassword,requestParm.getPassword())
+                .eq(UserDO::getUsername, requestParm.getUsername())
                 .eq(UserDO::getDelFlag, 0);
         UserDO userDO = this.baseMapper.selectOne(queryWrapper);
         if (userDO == null) {
             throw new ClientException(USER_NULL);
         }
-        Boolean hasLogin = stringRedisTemplate.hasKey("login_" + requestParm.getUsername());
-        if (hasLogin != null && hasLogin) {
-            throw new ClientException("用户已登录");
+        
+        // 验证密码
+        if (!PasswordEncoder.matches(requestParm.getPassword(), userDO.getPassword())) {
+            throw new ClientException("用户名或密码错误");
         }
-        String uuid = UUID.randomUUID().toString();
-        stringRedisTemplate.opsForHash().put("login_" + requestParm.getUsername(),uuid, JSON.toJSONString(userDO));
-        stringRedisTemplate.expire("login_" + requestParm.getUsername(),14, TimeUnit.DAYS);
-        return new UserLoginRespDTO(uuid);
+        
+        // 使用Sa-Token登录，返回token
+        StpUtil.login(userDO.getId());
+        // 获取token
+        String token = StpUtil.getTokenValue();
+        
+        // 在session中存储用户信息
+        StpUtil.getSession().set("userInfo", JSON.toJSONString(userDO));
+        
+        return new UserLoginRespDTO(token);
     }
 
     /**
      * 检查用户是否登录
      *
-     * @param username 用户名
-     * @param token 登录凭证
      * @return 用户登录状态，已登录返回true，未登录返回false
      */
     @Override
-    public Boolean checkLogin(String username, String token) {
-        return stringRedisTemplate.opsForHash().get("login_" + username,token) != null;
+    public Boolean checkLogin() {
+        // 直接使用Sa-Token检查当前会话是否已登录
+        return StpUtil.isLogin();
     }
 
+    /**
+     * 退出登录
+     */
     @Override
-    public void logout(String username, String token) {
-        if (checkLogin(username,token)) {
-            stringRedisTemplate.delete("login_" + username);
+    public void logout() {
+        // 检查当前会话是否已登录
+        if (StpUtil.isLogin()) {
+            // 退出当前会话的登录
+            StpUtil.logout();
             return;
         }
-       throw new ClientException("用户不存在或已退出登录");
+        throw new ClientException("用户未登录");
     }
 }
 

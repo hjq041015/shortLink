@@ -75,18 +75,16 @@ public class UserController {
      * 检查用户是否已经登录
      */
     @GetMapping("/api/shortLink/v1/user/check-login")
-    public Result<Boolean> checkLogin(@RequestParam("username") String username,
-                                      @RequestParam("token") String token) {
-        return Results.success(userService.checkLogin(username, token));
+    public Result<Boolean> checkLogin() {
+        return Results.success(userService.checkLogin());
     }
 
     /**
      * 退出登录
      */
     @DeleteMapping("/api/shortLink/v1/user/logout")
-    public Result<Void> logout(@RequestParam("username") String username,
-                               @RequestParam("token") String token) {
-        userService.logout(username, token);
+    public Result<Void> logout() {
+        userService.logout();
         return Results.success();
     }
 
