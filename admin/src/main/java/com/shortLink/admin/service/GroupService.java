@@ -2,7 +2,8 @@ package com.shortLink.admin.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.shortLink.admin.dao.entity.GroupDO;
-import com.shortLink.admin.dto.req.ShortLinkGroupSaveReqDTO;
+import com.shortLink.admin.dto.req.GroupUpdateReqDTO;
+import com.shortLink.admin.dto.req.ShortLinkGroupAddReqDTO;
 
 import java.util.List;
 
@@ -18,6 +19,11 @@ public interface GroupService extends IService<GroupDO> {
     /**
      * 查询分组
      */
-    List<ShortLinkGroupSaveReqDTO> queryGroup();
+    List<ShortLinkGroupAddReqDTO> queryGroup();
+
+    /**
+     *  修改分组
+     */
+    void updateGroup(GroupUpdateReqDTO requestParm);
 }
 

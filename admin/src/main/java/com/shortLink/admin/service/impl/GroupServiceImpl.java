@@ -2,14 +2,17 @@ package com.shortLink.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.admin.common.convention.exception.ClientException;
 import com.shortLink.admin.dao.entity.GroupDO;
 import com.shortLink.admin.dao.mapper.GroupMapper;
-import com.shortLink.admin.dto.req.ShortLinkGroupSaveReqDTO;
+import com.shortLink.admin.dto.req.GroupUpdateReqDTO;
+import com.shortLink.admin.dto.req.ShortLinkGroupAddReqDTO;
 import com.shortLink.admin.service.GroupService;
 import com.shortLink.admin.toolkit.RandomGenerator;
+import com.shortLink.admin.toolkit.UserContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -37,6 +40,7 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         } while (isGidExists(gid));
         GroupDO groupDO = GroupDO.builder()
                 .gid(gid)
+                .username(UserContextHolder.getUsername())
                 .name(name)
                 .sortOrder(0)
                 .build();
@@ -49,14 +53,23 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
      * @return 分组列表
      */
     @Override
-    public List<ShortLinkGroupSaveReqDTO> queryGroup() {
+    public List<ShortLinkGroupAddReqDTO> queryGroup() {
         LambdaQueryWrapper<GroupDO> query = Wrappers.lambdaQuery(GroupDO.class)
-                // TODO 从上下文获取用户名
                 .eq(GroupDO::getDelFlag, 0)
-                .isNull(GroupDO::getUsername)
+                .eq(GroupDO::getUsername,UserContextHolder.getUsername())
                 .orderByDesc(GroupDO::getSortOrder, GroupDO::getUpdateTime);
         List<GroupDO> groupList = this.baseMapper.selectList(query);
-        return BeanUtil.copyToList(groupList,ShortLinkGroupSaveReqDTO.class);
+        return BeanUtil.copyToList(groupList, ShortLinkGroupAddReqDTO.class);
+    }
+
+    @Override
+    public void updateGroup(GroupUpdateReqDTO requestParm) {
+       LambdaUpdateWrapper<GroupDO> updateWrapper = Wrappers.lambdaUpdate(GroupDO.class)
+        .eq(GroupDO::getUsername, UserContextHolder.getUsername())
+        .eq(GroupDO::getGid, requestParm.getGid())
+        .eq(GroupDO::getDelFlag, 0)
+        .set(GroupDO::getName,requestParm.getName());
+       this.baseMapper.update(null,updateWrapper);
     }
 
     /**
