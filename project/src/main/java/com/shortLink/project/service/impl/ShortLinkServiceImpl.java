@@ -1,13 +1,18 @@
 package com.shortLink.project.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.text.StrBuilder;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.project.common.convention.exception.ServiceException;
 import com.shortLink.project.dao.entity.ShortLinkDO;
 import com.shortLink.project.dao.mapper.ShortLinkMapper;
 import com.shortLink.project.dto.req.ShortLinkCreateReqDTO;
+import com.shortLink.project.dto.req.ShortLinkPageReqDTO;
 import com.shortLink.project.dto.resp.ShortLinkCreateRespDTO;
+import com.shortLink.project.dto.resp.ShortLinkPageRespDTO;
 import com.shortLink.project.service.ShortLinkService;
 import com.shortLink.project.toolkit.HashUtil;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +76,27 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .build();
     }
 
+    /**
+     * 分页查询短链接
+     *
+     * @param requestParam 分页查询参数，包含分页信息和gid
+     * @return 短链接分页查询结果
+     */
+    @Override
+    public IPage<ShortLinkPageRespDTO> pageShortLink(ShortLinkPageReqDTO requestParam) {
+        IPage<ShortLinkDO> page = new Page<>(requestParam.getCurrent(),requestParam.getSize());
+        // 构造查询条件：根据gid查询未删除且启用的短链接，并按创建时间倒序排列
+        LambdaQueryWrapper<ShortLinkDO> queryWrapper = new LambdaQueryWrapper<>(ShortLinkDO.class)
+                .eq(ShortLinkDO::getGid,requestParam.getGid())
+                .eq(ShortLinkDO::getDelFlag,0)
+                .eq(ShortLinkDO::getEnableStatus,0)
+                .orderByDesc(ShortLinkDO::getCreateTime);
+        // 执行分页查询，将查询结果填充到 page 对象中
+        IPage<ShortLinkDO> resultPage = this.baseMapper.selectPage(page, queryWrapper);
+        // 将查询结果从 ShortLinkDO 转换为 ShortLinkPageRespDTO
+       return resultPage.convert(each -> BeanUtil.toBean(each, ShortLinkPageRespDTO.class));
+
+    }
 
 
     /**
