@@ -5,6 +5,7 @@ import com.shortLink.admin.common.convention.result.Results;
 import com.shortLink.admin.dto.req.GroupSortReqDTO;
 import com.shortLink.admin.dto.req.GroupUpdateReqDTO;
 import com.shortLink.admin.dto.req.ShortLinkGroupAddReqDTO;
+import com.shortLink.admin.dto.resp.GroupRespDTO;
 import com.shortLink.admin.service.GroupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -32,7 +33,7 @@ public class GroupController {
      * 查询分组
      */
     @GetMapping("/api/shortLink/admin/v1/group/query")
-    public Result<List<ShortLinkGroupAddReqDTO>> queryGroup(){
+    public Result<List<GroupRespDTO>> queryGroup(){
         return Results.success(groupService.queryGroup());
     }
 

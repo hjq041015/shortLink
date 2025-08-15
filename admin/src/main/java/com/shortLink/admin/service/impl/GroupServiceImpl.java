@@ -10,19 +10,29 @@ import com.shortLink.admin.dao.entity.GroupDO;
 import com.shortLink.admin.dao.mapper.GroupMapper;
 import com.shortLink.admin.dto.req.GroupSortReqDTO;
 import com.shortLink.admin.dto.req.GroupUpdateReqDTO;
-import com.shortLink.admin.dto.req.ShortLinkGroupAddReqDTO;
+import com.shortLink.admin.dto.resp.GroupRespDTO;
+import com.shortLink.admin.dto.resp.ShortLinkGroupCountRespDTO;
+import com.shortLink.admin.remote.ShortLinkRemoteService;
 import com.shortLink.admin.service.GroupService;
 import com.shortLink.admin.toolkit.RandomGenerator;
 import com.shortLink.admin.toolkit.UserContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 分组服务实现类，实现分组相关的业务逻辑
  */
 @Service
 public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implements GroupService {
+
+     ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {
+    };
+
     /**
      * 添加分组
      *
@@ -54,13 +64,28 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
      * @return 分组列表
      */
     @Override
-    public List<ShortLinkGroupAddReqDTO> queryGroup() {
+    public List<GroupRespDTO> queryGroup() {
+        // 1) 构造查询条件：只查未删除(del_flag=0)、当前登录用户(username)的分组；
+        //    并按 sort_order、update_time 倒序排
         LambdaQueryWrapper<GroupDO> query = Wrappers.lambdaQuery(GroupDO.class)
                 .eq(GroupDO::getDelFlag, 0)
                 .eq(GroupDO::getUsername,UserContextHolder.getUsername())
                 .orderByDesc(GroupDO::getSortOrder, GroupDO::getUpdateTime);
+        // 2) 执行查询，得到分组实体列表
         List<GroupDO> groupList = this.baseMapper.selectList(query);
-        return BeanUtil.copyToList(groupList, ShortLinkGroupAddReqDTO.class);
+        if (groupList == null || groupList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // 3) 取出所有分组的 gid，远程调用短链接服务统计每个 gid 的短链数量
+        //    注意：这里 shortLinkRemoteService 的返回是 Result<...>，所以取 .getData()
+        List<ShortLinkGroupCountRespDTO> gids = shortLinkRemoteService.listGroupShortLinkCount(groupList.stream().map(GroupDO::getGid).toList()).getData();
+        // 4) 把分组实体复制成对外返回的 DTO（属性名要能对上）
+        List<GroupRespDTO> results = BeanUtil.copyToList(groupList, GroupRespDTO.class);
+        // 5) 把 “gid -> 数量” 做成 Map，方便后面回填
+        Map<String, Integer> counts = gids.stream().filter(Objects::nonNull).collect(Collectors.toMap(ShortLinkGroupCountRespDTO::getGid,
+                dto-> dto.getShortLinkCount() == null ? 0: dto.getShortLinkCount()));
+        // 6) 把每个分组对应的数量回填到返回 DTO 里（通过 gid 关联）
+        return results.stream().peek(result-> result.setShortLinkCount(counts.get(result.getGid()))).toList();
     }
 
     /**
