@@ -40,8 +40,18 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
      */
     @Override
     public void addGroup(String name) {
+
+    }
+
+    /**
+     * 创建短链接分组
+     *
+     * @param username  用户名
+     * @param groupName 分组名称
+     */
+    public void addGroup(String username, String groupName) {
         // 先判断分组名称是否已存在，存在则抛出异常
-        if (isGroupNameExists(name)) {
+        if (isGroupNameExists(groupName)) {
             throw new ClientException("分组名称已存在");
         }
         // 生成唯一gid
@@ -51,8 +61,8 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         } while (isGidExists(gid));
         GroupDO groupDO = GroupDO.builder()
                 .gid(gid)
-                .username(UserContextHolder.getUsername())
-                .name(name)
+                .username(username)
+                .name(groupName)
                 .sortOrder(0)
                 .build();
         this.baseMapper.insert(groupDO);

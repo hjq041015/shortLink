@@ -15,6 +15,7 @@ import com.shortLink.admin.dto.req.UserRegisterReqDTO;
 import com.shortLink.admin.dto.req.UserUpdateReqDTO;
 import com.shortLink.admin.dto.resp.UserLoginRespDTO;
 import com.shortLink.admin.dto.resp.UserRespDTO;
+import com.shortLink.admin.service.GroupService;
 import com.shortLink.admin.service.UserService;
 import com.shortLink.admin.toolkit.PasswordEncoder;
 import com.shortLink.admin.toolkit.UserContextHolder;
@@ -37,6 +38,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
 
     private final RBloomFilter<String> bloomFilter;
     private final RedissonClient redissonClient;
+    private final GroupService groupService;
 
     /**
      * 根据用户名查询用户信息
@@ -99,6 +101,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
                     throw new ClientException(USER_SAVE_ERROR);
                 }
                 bloomFilter.add(requestParm.getUsername());
+                groupService.addGroup(requestParm.getUsername(),"默认分组");
                 return; // 注册成功直接返回
             } else {
                 // 获取锁失败，抛出用户已存在异常
