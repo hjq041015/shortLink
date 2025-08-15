@@ -38,7 +38,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
      * @return 短链接创建响应结果
      */
     @Override
-    public ShortLinkCreateRespDTO crateShortLink(ShortLinkCreateReqDTO requestParm) {
+    public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParm) {
         String shortLinkSuffix = generateSuffix(requestParm);
         String fullShortUrl = StrBuilder.create(requestParm.getDomain())
                 .append("/")
