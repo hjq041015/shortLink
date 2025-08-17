@@ -35,10 +35,12 @@ import org.redisson.api.RedissonClient;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static com.shortLink.project.common.constant.RedisKeyConstant.*;
@@ -63,6 +65,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
      * @param requestParm 创建短链接的请求参数
      * @return 短链接创建响应结果
      */
+    @Transactional
     @Override
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParm) {
         String shortLinkSuffix = generateSuffix(requestParm);
@@ -90,14 +93,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             this.baseMapper.insert(shortLinkDO);
             shortLinkGotoMapper.insert(shortLinkGotoDO);
         }catch (DuplicateKeyException ex) {
-            // 处理唯一索引冲突异常，检查是否确实重复
-            LambdaQueryWrapper<ShortLinkDO> queryWrapper = new LambdaQueryWrapper<>(ShortLinkDO.class)
-                    .eq(ShortLinkDO::getFullShortUrl,fullShortUrl);
-            ShortLinkDO shortUri = this.baseMapper.selectOne(queryWrapper);
-            if (shortUri != null) {
-                log.warn("短链接：{} 重复入库", fullShortUrl);
-                throw new ServiceException("短链接生成重复");
-            }
+                throw new ServiceException(String.format("短链接: %s 生成重复",fullShortUrl));
         }
         shortUriCreateCachePenetrationBloomFilter.add(fullShortUrl);
         return ShortLinkCreateRespDTO.builder()
@@ -260,7 +256,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 throw new ServiceException("短链接生成次数过多,请稍后再试");
             }
             String originalUrl = requestParam.getOriginUrl();
-            originalUrl += System.currentTimeMillis();
+            originalUrl += UUID.randomUUID().toString();
             shortUri = HashUtil.hashToBase62(originalUrl);
             // 检查生成的短链接是否已存在，如果不存在则跳出循环
             if(!shortUriCreateCachePenetrationBloomFilter.contains(requestParam.getDomain() + "/" + shortUri)) {
