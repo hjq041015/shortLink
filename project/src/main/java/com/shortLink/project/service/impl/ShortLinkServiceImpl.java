@@ -12,6 +12,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.project.common.convention.exception.ServiceException;
 import com.shortLink.project.common.enums.VailDateTypeEnum;
 import com.shortLink.project.dao.entity.ShortLinkDO;
+import com.shortLink.project.dao.entity.ShortLinkGotoDO;
+import com.shortLink.project.dao.mapper.ShortLinkGotoMapper;
 import com.shortLink.project.dao.mapper.ShortLinkMapper;
 import com.shortLink.project.dto.req.ShortLinkCreateReqDTO;
 import com.shortLink.project.dto.req.ShortLinkPageReqDTO;
@@ -21,7 +23,10 @@ import com.shortLink.project.dto.resp.ShortLinkGroupCountRespDTO;
 import com.shortLink.project.dto.resp.ShortLinkPageRespDTO;
 import com.shortLink.project.service.ShortLinkService;
 import com.shortLink.project.toolkit.HashUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RBloomFilter;
 import org.springframework.dao.DuplicateKeyException;
@@ -41,6 +46,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
 
     private final RBloomFilter<String> shortUriCreateCachePenetrationBloomFilter;
     private final ShortLinkMapper shortLinkMapper;
+    private final ShortLinkGotoMapper shortLinkGotoMapper;
 
     /**
      * 创建短链接
@@ -67,8 +73,13 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .enableStatus(0)
                 .fullShortUrl(fullShortUrl)
                 .build();
+        ShortLinkGotoDO shortLinkGotoDO = ShortLinkGotoDO.builder()
+                .fullShortUrl(fullShortUrl)
+                .gid(requestParm.getGid())
+                .build();
         try{
             this.baseMapper.insert(shortLinkDO);
+            shortLinkGotoMapper.insert(shortLinkGotoDO);
         }catch (DuplicateKeyException ex) {
             // 处理唯一索引冲突异常，检查是否确实重复
             LambdaQueryWrapper<ShortLinkDO> queryWrapper = new LambdaQueryWrapper<>(ShortLinkDO.class)
@@ -82,7 +93,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         shortUriCreateCachePenetrationBloomFilter.add(fullShortUrl);
         return ShortLinkCreateRespDTO.builder()
                 .gid(requestParm.getGid())
-                .fullShortUrl(shortLinkDO.getFullShortUrl())
+                .fullShortUrl("http://" +shortLinkDO.getFullShortUrl())
                 .originUrl(requestParm.getOriginUrl())
                 .build();
     }
@@ -105,7 +116,11 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         // 执行分页查询，将查询结果填充到 page 对象中
         IPage<ShortLinkDO> resultPage = this.baseMapper.selectPage(page, queryWrapper);
         // 将查询结果从 ShortLinkDO 转换为 ShortLinkPageRespDTO
-       return resultPage.convert(each -> BeanUtil.toBean(each, ShortLinkPageRespDTO.class));
+       return resultPage.convert(each -> {
+           ShortLinkPageRespDTO result = BeanUtil.toBean(each, ShortLinkPageRespDTO.class);
+           result.setDomain("http://" + result.getDomain());
+           return result;
+       });
 
     }
 
@@ -148,6 +163,39 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .validDateType(requestParm.getValidDateType())
                 .build();
             baseMapper.update(shortLinkDO, updateWrapper);
+    }
+
+    /**
+     * 短链接跳转到原始链接
+     *
+     * @param shortUrl 短链接
+     * @param request  HTTP请求对象
+     * @param response HTTP响应对象
+     */
+    @SneakyThrows
+    @Override
+    public void restoreUrl(String shortUrl, HttpServletRequest request, HttpServletResponse response) {
+        String serverName = request.getServerName();
+        String fullShortUrl = serverName + "/" + shortUrl;
+        // 查询短链接跳转信息
+        LambdaQueryWrapper<ShortLinkGotoDO> gotoQueryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
+                .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
+        ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(gotoQueryWrapper);
+        if (shortLinkGotoDO == null) {
+            // 严谨来说此处需要进行封控
+            return;
+        }
+        // 查询短链接详细信息
+        LambdaQueryWrapper<ShortLinkDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkDO.class)
+                .eq(ShortLinkDO::getFullShortUrl,fullShortUrl)
+                .eq(ShortLinkDO::getGid,shortLinkGotoDO.getGid())
+                .eq(ShortLinkDO::getDelFlag, 0)
+                .eq(ShortLinkDO::getEnableStatus, 0);
+        ShortLinkDO shortLinkDO = this.baseMapper.selectOne(queryWrapper);
+        if (shortLinkDO != null) {
+            // 根据短链接找到原始链接进行跳转
+            response.sendRedirect(shortLinkDO.getOriginUrl());
+        }
     }
 
 
