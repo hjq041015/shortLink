@@ -2,6 +2,7 @@ package com.shortLink.project.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.text.StrBuilder;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -29,12 +30,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RBloomFilter;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static com.shortLink.project.common.constant.RedisKeyConstant.GOTO_SHORT_LINK_KEY;
+import static com.shortLink.project.common.constant.RedisKeyConstant.LOCK_GOTO_SHORT_LINK_KEY;
 
 /**
  * 短链接服务实现类
@@ -47,6 +54,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final RBloomFilter<String> shortUriCreateCachePenetrationBloomFilter;
     private final ShortLinkMapper shortLinkMapper;
     private final ShortLinkGotoMapper shortLinkGotoMapper;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final RedissonClient redissonClient;
 
     /**
      * 创建短链接
@@ -177,6 +186,22 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     public void restoreUrl(String shortUrl, HttpServletRequest request, HttpServletResponse response) {
         String serverName = request.getServerName();
         String fullShortUrl = serverName + "/" + shortUrl;
+        // 从Redis中获取原始链接
+        String originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY + fullShortUrl));
+        if (StrUtil.isNotBlank(originalLink)) {
+            response.sendRedirect(originalLink);
+            return;
+        }
+        // 获取分布式锁，防止缓存击穿
+        RLock lock = redissonClient.getLock(String.format(LOCK_GOTO_SHORT_LINK_KEY + fullShortUrl));
+        lock.lock();
+        try {
+            // 双重检查，再次从Redis中获取原始链接
+            originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY + fullShortUrl));
+        if (StrUtil.isNotBlank(originalLink)) {
+            response.sendRedirect(originalLink);
+            return;
+        }
         // 查询短链接跳转信息
         LambdaQueryWrapper<ShortLinkGotoDO> gotoQueryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
                 .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
@@ -194,8 +219,14 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         ShortLinkDO shortLinkDO = this.baseMapper.selectOne(queryWrapper);
         if (shortLinkDO != null) {
             // 根据短链接找到原始链接进行跳转
+            stringRedisTemplate.opsForValue().set(GOTO_SHORT_LINK_KEY + fullShortUrl,shortLinkDO.getOriginUrl());
             response.sendRedirect(shortLinkDO.getOriginUrl());
         }
+        }finally {
+            // 释放分布式锁
+            lock.unlock();
+        }
+
     }
 
 
