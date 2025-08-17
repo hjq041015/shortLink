@@ -4,15 +4,18 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.text.StrBuilder;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.project.common.convention.exception.ServiceException;
+import com.shortLink.project.common.enums.VailDateTypeEnum;
 import com.shortLink.project.dao.entity.ShortLinkDO;
 import com.shortLink.project.dao.mapper.ShortLinkMapper;
 import com.shortLink.project.dto.req.ShortLinkCreateReqDTO;
 import com.shortLink.project.dto.req.ShortLinkPageReqDTO;
+import com.shortLink.project.dto.req.ShortLinkUpdateReqDTO;
 import com.shortLink.project.dto.resp.ShortLinkCreateRespDTO;
 import com.shortLink.project.dto.resp.ShortLinkGroupCountRespDTO;
 import com.shortLink.project.dto.resp.ShortLinkPageRespDTO;
@@ -26,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 短链接服务实现类
@@ -121,6 +125,29 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .groupBy("gid");
         List<Map<String, Object>> shortLinkCounts = shortLinkMapper.selectMaps(queryWrapper);
         return BeanUtil.copyToList(shortLinkCounts,ShortLinkGroupCountRespDTO.class);
+    }
+
+    /**
+     * 更新短链接信息
+     *
+     * @param requestParm 短链接更新请求参数，包含完整短链接、分组ID、原始链接、有效期等信息
+     */
+    @Override
+    public void updateShortLink(ShortLinkUpdateReqDTO requestParm) {
+        // 构造更新条件：完整短链接、分组ID、未删除、启用状态
+        LambdaUpdateWrapper<ShortLinkDO> updateWrapper = Wrappers.lambdaUpdate(ShortLinkDO.class)
+                    .eq(ShortLinkDO::getFullShortUrl, requestParm.getFullShortUrl())
+                    .eq(ShortLinkDO::getGid, requestParm.getGid())
+                    .eq(ShortLinkDO::getDelFlag, 0)
+                    .eq(ShortLinkDO::getEnableStatus, 0)
+                    .set(Objects.equals(requestParm.getValidDateType(), VailDateTypeEnum.PERMANENT.getType()), ShortLinkDO::getValidDate, null);
+        ShortLinkDO shortLinkDO = ShortLinkDO.builder()
+                .originUrl(requestParm.getOriginUrl())
+                .describe(requestParm.getDescribe())
+                .validDate(requestParm.getValidDate())
+                .validDateType(requestParm.getValidDateType())
+                .build();
+            baseMapper.update(shortLinkDO, updateWrapper);
     }
 
 
