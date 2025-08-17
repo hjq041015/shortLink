@@ -24,6 +24,7 @@ import com.shortLink.project.dto.resp.ShortLinkGroupCountRespDTO;
 import com.shortLink.project.dto.resp.ShortLinkPageRespDTO;
 import com.shortLink.project.service.ShortLinkService;
 import com.shortLink.project.toolkit.HashUtil;
+import com.shortLink.project.toolkit.LinkUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -37,10 +38,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.shortLink.project.common.constant.RedisKeyConstant.*;
@@ -68,11 +66,13 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     @Transactional
     @Override
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParm) {
+        // 生成短链接后缀
         String shortLinkSuffix = generateSuffix(requestParm);
         String fullShortUrl = StrBuilder.create(requestParm.getDomain())
                 .append("/")
                 .append(shortLinkSuffix)
                 .toString();
+        // 构建短链接实体对象
         ShortLinkDO shortLinkDO = ShortLinkDO.builder()
                 .domain(requestParm.getDomain())
                 .originUrl(requestParm.getOriginUrl())
@@ -85,16 +85,21 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .enableStatus(0)
                 .fullShortUrl(fullShortUrl)
                 .build();
+        // 构建短链接跳转实体对象
         ShortLinkGotoDO shortLinkGotoDO = ShortLinkGotoDO.builder()
                 .fullShortUrl(fullShortUrl)
                 .gid(requestParm.getGid())
                 .build();
         try{
+            // 插入短链接和跳转信息到数据库
             this.baseMapper.insert(shortLinkDO);
             shortLinkGotoMapper.insert(shortLinkGotoDO);
         }catch (DuplicateKeyException ex) {
                 throw new ServiceException(String.format("短链接: %s 生成重复",fullShortUrl));
         }
+        // 将短链接和原始链接存入Redis缓存
+        stringRedisTemplate.opsForValue().set(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl),requestParm.getOriginUrl(), LinkUtil.getLinkCacheValidTime(requestParm.getValidDate()),TimeUnit.MILLISECONDS);
+        // 将短链接添加到布隆过滤器中，防止缓存穿透
         shortUriCreateCachePenetrationBloomFilter.add(fullShortUrl);
         return ShortLinkCreateRespDTO.builder()
                 .gid(requestParm.getGid())
@@ -226,8 +231,14 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .eq(ShortLinkDO::getEnableStatus, 0);
         ShortLinkDO shortLinkDO = this.baseMapper.selectOne(queryWrapper);
         if (shortLinkDO != null) {
+            // 检查短链接是否过期
+            if (shortLinkDO.getValidDate()!= null && shortLinkDO.getValidDate().before(new Date())) {
+                // 将过期短链接标识存入Redis，防止缓存穿透
+                stringRedisTemplate.opsForValue().set(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30, TimeUnit.MINUTES);
+                return;
+            }
             // 根据短链接找到原始链接进行跳转
-            stringRedisTemplate.opsForValue().set(GOTO_SHORT_LINK_KEY + fullShortUrl,shortLinkDO.getOriginUrl());
+           stringRedisTemplate.opsForValue().set(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl),shortLinkDO.getOriginUrl(), LinkUtil.getLinkCacheValidTime(shortLinkDO.getValidDate()),TimeUnit.MILLISECONDS);
             response.sendRedirect(shortLinkDO.getOriginUrl());
         }
         }finally {
