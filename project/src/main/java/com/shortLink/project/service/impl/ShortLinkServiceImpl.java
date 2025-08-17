@@ -39,9 +39,9 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
-import static com.shortLink.project.common.constant.RedisKeyConstant.GOTO_SHORT_LINK_KEY;
-import static com.shortLink.project.common.constant.RedisKeyConstant.LOCK_GOTO_SHORT_LINK_KEY;
+import static com.shortLink.project.common.constant.RedisKeyConstant.*;
 
 /**
  * 短链接服务实现类
@@ -192,6 +192,17 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             response.sendRedirect(originalLink);
             return;
         }
+        // 通过布隆过滤器判断短链接是否存在，防止缓存穿透
+        boolean contains = shortUriCreateCachePenetrationBloomFilter.contains(fullShortUrl);
+        if (!contains) {
+            return;
+        }
+
+        // 检查是否是已知的无效短链接
+        String nullShortLink  = stringRedisTemplate.opsForValue().get(String.format(GOTO_IS_NULL_SHORT_LINK_KEY + fullShortUrl));
+        if (StrUtil.isNotBlank(nullShortLink)) {
+            return;
+        }
         // 获取分布式锁，防止缓存击穿
         RLock lock = redissonClient.getLock(String.format(LOCK_GOTO_SHORT_LINK_KEY + fullShortUrl));
         lock.lock();
@@ -207,7 +218,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
         ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(gotoQueryWrapper);
         if (shortLinkGotoDO == null) {
-            // 严谨来说此处需要进行封控
+            // 将无效短链接标识存入Redis，防止缓存穿透
+            stringRedisTemplate.opsForValue().set(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30, TimeUnit.MINUTES);
             return;
         }
         // 查询短链接详细信息
