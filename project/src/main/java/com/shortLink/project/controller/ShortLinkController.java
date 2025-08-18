@@ -18,6 +18,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 短链接控制层
+ */
 @RestController
 @RequiredArgsConstructor
 public class ShortLinkController {

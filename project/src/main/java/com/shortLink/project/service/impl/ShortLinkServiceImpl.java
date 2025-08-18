@@ -194,7 +194,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         String serverName = request.getServerName();
         String fullShortUrl = serverName + "/" + shortUrl;
         // 从Redis中获取原始链接
-        String originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY + fullShortUrl));
+        String originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl));
         if (StrUtil.isNotBlank(originalLink)) {
             response.sendRedirect(originalLink);
             return;
@@ -207,17 +207,17 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         }
 
         // 检查是否是已知的无效短链接
-        String nullShortLink  = stringRedisTemplate.opsForValue().get(String.format(GOTO_IS_NULL_SHORT_LINK_KEY + fullShortUrl));
+        String nullShortLink  = stringRedisTemplate.opsForValue().get(String.format(GOTO_IS_NULL_SHORT_LINK_KEY , fullShortUrl));
         if (StrUtil.isNotBlank(nullShortLink)) {
             response.sendRedirect("/page/notfound");
             return;
         }
         // 获取分布式锁，防止缓存击穿
-        RLock lock = redissonClient.getLock(String.format(LOCK_GOTO_SHORT_LINK_KEY + fullShortUrl));
+        RLock lock = redissonClient.getLock(String.format(LOCK_GOTO_SHORT_LINK_KEY , fullShortUrl));
         lock.lock();
         try {
             // 双重检查，再次从Redis中获取原始链接
-            originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY + fullShortUrl));
+            originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY , fullShortUrl));
         if (StrUtil.isNotBlank(originalLink)) {
             response.sendRedirect(originalLink);
             return;
@@ -239,18 +239,16 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .eq(ShortLinkDO::getDelFlag, 0)
                 .eq(ShortLinkDO::getEnableStatus, 0);
         ShortLinkDO shortLinkDO = this.baseMapper.selectOne(queryWrapper);
-        if (shortLinkDO != null) {
-            // 检查短链接是否过期
-            if (shortLinkDO.getValidDate()!= null && shortLinkDO.getValidDate().before(new Date())) {
-                // 将过期短链接标识存入Redis，防止缓存穿透
-                stringRedisTemplate.opsForValue().set(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30, TimeUnit.MINUTES);
-                response.sendRedirect("/page/notfound");
-                return;
-            }
-            // 根据短链接找到原始链接进行跳转
-           stringRedisTemplate.opsForValue().set(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl),shortLinkDO.getOriginUrl(), LinkUtil.getLinkCacheValidTime(shortLinkDO.getValidDate()),TimeUnit.MILLISECONDS);
-            response.sendRedirect(shortLinkDO.getOriginUrl());
+        // 检查短链接是否过期
+        if (shortLinkDO == null || shortLinkDO.getValidDate()!= null && shortLinkDO.getValidDate().before(new Date())) {
+            // 将过期短链接标识存入Redis，防止缓存穿透
+            stringRedisTemplate.opsForValue().set(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30, TimeUnit.MINUTES);
+            response.sendRedirect("/page/notfound");
+            return;
         }
+        // 根据短链接找到原始链接进行跳转
+        stringRedisTemplate.opsForValue().set(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl),shortLinkDO.getOriginUrl(), LinkUtil.getLinkCacheValidTime(shortLinkDO.getValidDate()),TimeUnit.MILLISECONDS);
+        response.sendRedirect(shortLinkDO.getOriginUrl());
         }finally {
             // 释放分布式锁
             lock.unlock();
