@@ -30,6 +30,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.redisson.api.RBloomFilter;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -38,6 +41,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -84,6 +89,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .shortUri(shortLinkSuffix)
                 .enableStatus(0)
                 .fullShortUrl(fullShortUrl)
+                .favicon(getFavicon(requestParm.getOriginUrl()))
                 .build();
         // 构建短链接跳转实体对象
         ShortLinkGotoDO shortLinkGotoDO = ShortLinkGotoDO.builder()
@@ -280,5 +286,31 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             customGenerateCount++;
         }
         return shortUri;
+    }
+
+    /**
+     * 获取网站favicon图标地址
+     *
+     * @param url 目标网站地址
+     * @return favicon图标地址，获取失败时返回null
+     */
+    @SneakyThrows
+    private String getFavicon(String url) {
+        URL targetUrl = new URL(url);
+        HttpURLConnection connection = (HttpURLConnection) targetUrl.openConnection();
+        connection.setRequestMethod("GET");
+        connection.connect();
+        // 获取HTTP响应状态码
+        int responseCode = connection.getResponseCode();
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            Document document = Jsoup.connect(url).get();
+            // 查找网页中favicon图标链接
+            Element first = document.select("link[rel~=(?i)^(shortcut )?icon]").first();
+            if (first != null) {
+                return first.attr("abs:href");
+            }
+        }
+        return null;
+
     }
 }
