@@ -196,12 +196,14 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         // 通过布隆过滤器判断短链接是否存在，防止缓存穿透
         boolean contains = shortUriCreateCachePenetrationBloomFilter.contains(fullShortUrl);
         if (!contains) {
+            response.sendRedirect("/page/notfound");
             return;
         }
 
         // 检查是否是已知的无效短链接
         String nullShortLink  = stringRedisTemplate.opsForValue().get(String.format(GOTO_IS_NULL_SHORT_LINK_KEY + fullShortUrl));
         if (StrUtil.isNotBlank(nullShortLink)) {
+            response.sendRedirect("/page/notfound");
             return;
         }
         // 获取分布式锁，防止缓存击穿
@@ -221,6 +223,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         if (shortLinkGotoDO == null) {
             // 将无效短链接标识存入Redis，防止缓存穿透
             stringRedisTemplate.opsForValue().set(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30, TimeUnit.MINUTES);
+            response.sendRedirect("/page/notfound");
             return;
         }
         // 查询短链接详细信息
@@ -235,6 +238,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             if (shortLinkDO.getValidDate()!= null && shortLinkDO.getValidDate().before(new Date())) {
                 // 将过期短链接标识存入Redis，防止缓存穿透
                 stringRedisTemplate.opsForValue().set(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30, TimeUnit.MINUTES);
+                response.sendRedirect("/page/notfound");
                 return;
             }
             // 根据短链接找到原始链接进行跳转
