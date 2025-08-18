@@ -13,7 +13,9 @@ import com.shortLink.admin.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-
+/**
+ * 用户控制层
+ */
 @RestController
 @RequiredArgsConstructor
 public class UserController {
