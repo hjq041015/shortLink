@@ -10,6 +10,7 @@ import com.shortLink.project.dao.entity.ShortLinkDO;
 import com.shortLink.project.dao.mapper.ShortLinkMapper;
 import com.shortLink.project.dto.req.RecycleBinPageReqDTO;
 import com.shortLink.project.dto.req.RecycleBinRecoverReqDTO;
+import com.shortLink.project.dto.req.RecycleBinRemoveReqDTO;
 import com.shortLink.project.dto.req.RecycleBinSaveReqDTO;
 import com.shortLink.project.dto.resp.ShortLinkPageRespDTO;
 import com.shortLink.project.service.RecycleBinService;
@@ -82,5 +83,21 @@ public class RecycleBinServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLin
                 .set(ShortLinkDO::getEnableStatus, 0);
         this.baseMapper.update(null,updateWrapper);
         stringRedisTemplate.delete(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, requestParm.getFullShortUrl()));
+    }
+
+    /**
+     * 删除短链接
+     *
+     * @param requestParm 回收站删除请求参数，包含分组ID和完整短链接
+     */
+    @Override
+    public void remove(RecycleBinRemoveReqDTO requestParm) {
+        // 构造删除条件：删除指定分组中处于回收站状态的短链接
+        LambdaUpdateWrapper<ShortLinkDO> updateWrapper = Wrappers.lambdaUpdate(ShortLinkDO.class)
+                .eq(ShortLinkDO::getFullShortUrl, requestParm.getFullShortUrl())
+                .eq(ShortLinkDO::getGid, requestParm.getGid())
+                .eq(ShortLinkDO::getEnableStatus, 1)
+                .eq(ShortLinkDO::getDelFlag, 0);
+        this.baseMapper.delete(updateWrapper);
     }
 }

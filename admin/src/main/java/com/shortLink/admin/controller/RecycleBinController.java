@@ -6,6 +6,7 @@ import com.shortLink.admin.common.convention.result.Results;
 import com.shortLink.admin.remote.ShortLinkRemoteService;
 import com.shortLink.admin.remote.dto.req.RecycleBinPageReqDTO;
 import com.shortLink.admin.remote.dto.req.RecycleBinRecoverReqDTO;
+import com.shortLink.admin.remote.dto.req.RecycleBinRemoveReqDTO;
 import com.shortLink.admin.remote.dto.req.RecycleBinSaveReqDTO;
 import com.shortLink.admin.remote.dto.resp.ShortLinkPageRespDTO;
 import com.shortLink.admin.service.RecycleBinService;
@@ -52,6 +53,12 @@ public class RecycleBinController {
     @PostMapping("/api/shortLink/admin/v1/recycle-bin/recover")
     public Result<Void> recover(@RequestBody RecycleBinRecoverReqDTO requestParm) {
         shortLinkRemoteService.recoverRecycleBin(requestParm);
+        return Results.success();
+    }
+
+    @PostMapping("/api/shortLink/admin/v1/recycle-bin/remove")
+    public Result<Void> remove(@RequestBody RecycleBinRemoveReqDTO requestParm) {
+        shortLinkRemoteService.removeRecycleBin(requestParm);
         return Results.success();
     }
 
