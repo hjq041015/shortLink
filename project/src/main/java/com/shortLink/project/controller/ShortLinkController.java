@@ -30,7 +30,7 @@ public class ShortLinkController {
     /**
      * 创建短链接
      */
-    @PostMapping("/api/short-link/v1/create")
+    @PostMapping("/api/shortLink/v1/create")
     public Result<ShortLinkCreateRespDTO> createShortLink(@RequestBody ShortLinkCreateReqDTO requestParm) {
         return Results.success(shortLinkService.createShortLink(requestParm));
     }
@@ -38,7 +38,7 @@ public class ShortLinkController {
     /**
      * 分页查询短链接
      */
-    @GetMapping("/api/short-link/v1/page")
+    @GetMapping("/api/shortLink/v1/page")
     public Result<IPage<ShortLinkPageRespDTO>> pageShortLink(ShortLinkPageReqDTO requestParam) {
         return Results.success(shortLinkService.pageShortLink(requestParam));
     }
@@ -46,7 +46,7 @@ public class ShortLinkController {
     /**
      *  查询短链接分组中的短链接数量
      */
-    @GetMapping("/api/short-link/v1/count")
+    @GetMapping("/api/shortLink/v1/count")
     public Result<List<ShortLinkGroupCountRespDTO>> listGroupShortLinkCount(@RequestParam("requestParm") List<String> requestParm) {
         return Results.success(shortLinkService.listGroupShortLinkCount(requestParm));
     }
@@ -54,7 +54,7 @@ public class ShortLinkController {
     /**
      *  修改短链接
      */
-    @PostMapping("/api/short-link/v1/update")
+    @PostMapping("/api/shortLink/v1/update")
     public Result<Void> updateShortLink(@RequestBody ShortLinkUpdateReqDTO requestParm) {
         shortLinkService.updateShortLink(requestParm);
         return Results.success();
