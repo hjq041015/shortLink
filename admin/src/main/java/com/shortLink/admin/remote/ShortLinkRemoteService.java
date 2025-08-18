@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.shortLink.admin.common.convention.result.Result;
 import com.shortLink.admin.dto.req.ShortLinkUpdateReqDTO;
 import com.shortLink.admin.dto.resp.ShortLinkGroupCountRespDTO;
+import com.shortLink.admin.remote.dto.req.RecycleBinPageReqDTO;
 import com.shortLink.admin.remote.dto.req.RecycleBinSaveReqDTO;
 import com.shortLink.admin.remote.dto.req.ShortLinkCreateReqDTO;
 import com.shortLink.admin.remote.dto.req.ShortLinkPageReqDTO;
@@ -31,7 +32,7 @@ public interface ShortLinkRemoteService {
     * @return ShortLinkCreateRespDTO 短链接创建响应对象，包含生成的短链接信息
     */
    default Result<ShortLinkCreateRespDTO> createShortLink(ShortLinkCreateReqDTO requestParm) {
-       String resultBodyStr = HttpUtil.post("http://127.0.0.1:8001/api/short-link/v1/create", JSON.toJSONString(requestParm));
+       String resultBodyStr = HttpUtil.post("http://127.0.0.1:8001/api/shortLink/v1/create", JSON.toJSONString(requestParm));
        return JSON.parseObject(resultBodyStr, new TypeReference<>() {
        });
    }
@@ -47,7 +48,7 @@ public interface ShortLinkRemoteService {
        requestMap.put("gid",requestParam.getGid());
        requestMap.put("current",requestParam.getCurrent());
        requestMap.put("size",requestParam.getSize());
-       String resultPageStr = HttpUtil.get("http://127.0.0.1:8001/api/short-link/v1/page", requestMap);
+       String resultPageStr = HttpUtil.get("http://127.0.0.1:8001/api/shortLink/v1/page", requestMap);
        return JSON.parseObject(resultPageStr,new TypeReference<>() {
        });
    }
@@ -61,7 +62,7 @@ public interface ShortLinkRemoteService {
    default Result<List<ShortLinkGroupCountRespDTO>> listGroupShortLinkCount(List<String> requestParm) {
        Map<String,Object> requstMap = new HashMap<>();
        requstMap.put("requestParm",requestParm);
-       String resultPageStr = HttpUtil.get("http://127.0.0.1:8001/api/short-link/v1/count", requstMap);
+       String resultPageStr = HttpUtil.get("http://127.0.0.1:8001/api/shortLink/v1/count", requstMap);
        return JSON.parseObject(resultPageStr, new TypeReference<>() {
        });
    }
@@ -71,7 +72,7 @@ public interface ShortLinkRemoteService {
      * @param requestParam 修改短链接请求参数
      */
     default void updateShortLink(ShortLinkUpdateReqDTO requestParam) {
-        HttpUtil.post("http://127.0.0.1:8001/api/short-link/v1/update", JSON.toJSONString(requestParam));
+        HttpUtil.post("http://127.0.0.1:8001/api/shortLink/v1/update", JSON.toJSONString(requestParam));
     }
 
     /**
@@ -81,7 +82,7 @@ public interface ShortLinkRemoteService {
      * @return 网站标题
      */
     default Result<String> getTitleByUrl(@RequestParam("url") String url) {
-        String resultStr = HttpUtil.get("http://127.0.0.1:8001/api/short-link/v1/title?url=" + url);
+        String resultStr = HttpUtil.get("http://127.0.0.1:8001/api/shortLink/v1/title?url=" + url);
         return JSON.parseObject(resultStr, new TypeReference<>() {
         });
     }
@@ -92,7 +93,23 @@ public interface ShortLinkRemoteService {
      * @param requestParam 请求参数
      */
     default void saveRecycleBin(RecycleBinSaveReqDTO requestParam) {
-        HttpUtil.post("http://127.0.0.1:8001/api/short-link/v1/recycle-bin/save", JSON.toJSONString(requestParam));
+        HttpUtil.post("http://127.0.0.1:8001/api/shortLink/v1/recycle-bin/save", JSON.toJSONString(requestParam));
+    }
+
+     /**
+     * 分页查询回收站短链接
+     *
+     * @param requestParam 分页短链接请求参数
+     * @return 查询短链接响应
+     */
+    default Result<IPage<ShortLinkPageRespDTO>> pageRecycleBinShortLink(RecycleBinPageReqDTO requestParam) {
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("gidList", requestParam.getGidList());
+        requestMap.put("current", requestParam.getCurrent());
+        requestMap.put("size", requestParam.getSize());
+        String resultPageStr = HttpUtil.get("http://127.0.0.1:8001/api/shortLink/v1/recycle-bin/page", requestMap);
+        return JSON.parseObject(resultPageStr, new TypeReference<>() {
+        });
     }
 
 }

@@ -1,11 +1,16 @@
 package com.shortLink.project.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shortLink.project.dao.entity.ShortLinkDO;
 import com.shortLink.project.dao.mapper.ShortLinkMapper;
+import com.shortLink.project.dto.req.RecycleBinPageReqDTO;
 import com.shortLink.project.dto.req.RecycleBinSaveReqDTO;
+import com.shortLink.project.dto.resp.ShortLinkPageRespDTO;
 import com.shortLink.project.service.RecycleBinService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -35,5 +40,27 @@ public class RecycleBinServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLin
         this.baseMapper.update(null,updateWrapper);
         // 从Redis中删除对应的短链接缓存
         stringRedisTemplate.delete(String.format(GOTO_SHORT_LINK_KEY, requestParm.getFullShortUrl()));
+    }
+
+    /**
+     * 分页查询回收站短链接
+     *
+     * @param requestParm 回收站分页查询请求参数，包含分组ID列表等分页信息
+     * @return 回收站短链接分页查询结果
+     */
+    @Override
+    public IPage<ShortLinkPageRespDTO> pageShortLink(RecycleBinPageReqDTO requestParm) {
+         // 构造查询条件：根据分组ID列表查询已删除且在回收站中的短链接，并按更新时间倒序排列
+         LambdaQueryWrapper<ShortLinkDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkDO.class)
+                 .in(ShortLinkDO::getGid,requestParm.getGidList())
+                 .eq(ShortLinkDO::getDelFlag,0)
+                 .eq(ShortLinkDO::getEnableStatus,1)
+                 .orderByDesc(ShortLinkDO::getUpdateTime);
+         IPage<ShortLinkDO> resultPage = baseMapper.selectPage(requestParm, queryWrapper);
+        return resultPage.convert(each -> {
+            ShortLinkPageRespDTO result = BeanUtil.toBean(each, ShortLinkPageRespDTO.class);
+            result.setDomain("http://" + result.getDomain());
+            return result;
+        });
     }
 }
