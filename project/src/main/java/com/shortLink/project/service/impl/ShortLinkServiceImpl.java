@@ -3,6 +3,7 @@ package com.shortLink.project.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.text.StrBuilder;
+import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -28,6 +29,7 @@ import com.shortLink.project.dto.resp.ShortLinkPageRespDTO;
 import com.shortLink.project.service.ShortLinkService;
 import com.shortLink.project.toolkit.HashUtil;
 import com.shortLink.project.toolkit.LinkUtil;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +50,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.shortLink.project.common.constant.RedisKeyConstant.*;
 
@@ -274,13 +277,38 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
      * @param response     HTTP响应对象，用于返回响应数据
      */
     private void shortLinkStats(String fullShortUrl, HttpServletRequest request, HttpServletResponse response) {
+        AtomicBoolean uvFirstFlag = new AtomicBoolean();
+        Cookie[] cookies = request.getCookies();
         try{
+            // 处理UV统计的Cookie任务
+            Runnable addResponseCookieTask = () -> {
+                String uv = UUID.randomUUID().toString();
+                Cookie uvCookie = new Cookie("uv",uv);
+                uvCookie.setPath(StrUtil.sub(fullShortUrl,fullShortUrl.indexOf("/"),fullShortUrl.length()));
+                response.addCookie(uvCookie);
+                uvFirstFlag.set(Boolean.TRUE);
+                stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl,uv);
+                stringRedisTemplate.expire("short-link:stats:uv" + fullShortUrl,2,TimeUnit.DAYS);
+            };
+            // 检查请求中是否包含UV统计Cookie
+            if (ArrayUtil.isNotEmpty(cookies)) {
+                Arrays.stream(cookies)
+                        .filter(each -> Objects.equals(each.getName(),"uv"))
+                        .findFirst()
+                        .map(Cookie::getValue)
+                        .ifPresentOrElse(each -> {
+                            Long uvAdded = stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl, each);
+                            uvFirstFlag.set(uvAdded != null && uvAdded > 0L);
+                        }, addResponseCookieTask);
+            }else {
+                addResponseCookieTask.run();
+            }
             // 获取当前小时数和星期数，用于统计分析
             int hour = DateUtil.hour(new Date(),true);
             int weekValue = DateUtil.weekOfMonth(new Date());
             ShortLinkAccessStatsDO accessStatsDO = ShortLinkAccessStatsDO.builder()
                     .pv(1)
-                    .uv(1)
+                    .uv(uvFirstFlag.get() ? 1 : 0)
                     .uip(1)
                     .hour(hour)
                     .weekday(weekValue)
