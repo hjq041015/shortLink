@@ -7,7 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Date;
 import java.util.Optional;
 
-import static com.shortLink.project.common.constant.RedisKeyConstant.DEFAULT_CACHE_VALID_TIME;
+import static com.shortLink.project.common.constant.ShortLinkConstant.DEFAULT_CACHE_VALID_TIME;
 
 /**
  * 短链接工具类

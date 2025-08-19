@@ -15,6 +15,10 @@ spring:
       view:
         prefix: /templates/
         suffix: .html
+shortLink:
+  stats:
+    locale:
+      amap-key: 36303cbd115d7a707c6ae0de689035db
 mybatis-plus:
   global-config:
     db-config:

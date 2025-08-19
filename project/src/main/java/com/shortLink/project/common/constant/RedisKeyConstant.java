@@ -20,8 +20,5 @@ public class RedisKeyConstant {
      */
     public static final String GOTO_IS_NULL_SHORT_LINK_KEY = "short-link_is-null_goto_%s";
 
-    /**
-     * 永久短链接默认缓存有效时间
-     */
-    public static final long DEFAULT_CACHE_VALID_TIME = 2626560000L;
+
 }

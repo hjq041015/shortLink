@@ -5,6 +5,9 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.text.StrBuilder;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpUtil;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -17,8 +20,10 @@ import com.shortLink.project.common.enums.VailDateTypeEnum;
 import com.shortLink.project.dao.entity.ShortLinkAccessStatsDO;
 import com.shortLink.project.dao.entity.ShortLinkDO;
 import com.shortLink.project.dao.entity.ShortLinkGotoDO;
+import com.shortLink.project.dao.entity.ShortLinkLocaleStatsDO;
 import com.shortLink.project.dao.mapper.ShortLinkAccessStatsMapper;
 import com.shortLink.project.dao.mapper.ShortLinkGotoMapper;
+import com.shortLink.project.dao.mapper.ShortLinkLocaleStatsMapper;
 import com.shortLink.project.dao.mapper.ShortLinkMapper;
 import com.shortLink.project.dto.req.ShortLinkCreateReqDTO;
 import com.shortLink.project.dto.req.ShortLinkPageReqDTO;
@@ -41,6 +46,7 @@ import org.jsoup.nodes.Element;
 import org.redisson.api.RBloomFilter;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -53,6 +59,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.shortLink.project.common.constant.RedisKeyConstant.*;
+import static com.shortLink.project.common.constant.ShortLinkConstant.AMAP_REMOTE_URL;
 
 /**
  * 短链接服务实现类
@@ -68,6 +75,10 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final StringRedisTemplate stringRedisTemplate;
     private final RedissonClient redissonClient;
     private final ShortLinkAccessStatsMapper shortLinkAccessStatsMapper;
+    private final ShortLinkLocaleStatsMapper shortLinkLocaleStatsMapper;
+
+    @Value("${shortLink.stats.locale.amap-key}")
+    private String statsLocaleAmapKey;
 
     /**
      * 创建短链接
@@ -319,6 +330,26 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .date(new Date())
                     .build();
             shortLinkAccessStatsMapper.shortLinkStats(accessStatsDO);
+            Map<String,Object> requestMap = new HashMap<>();
+            requestMap.put("key",statsLocaleAmapKey);
+            requestMap.put("ip",actualIp);
+            String result = HttpUtil.get(AMAP_REMOTE_URL, requestMap);
+            JSONObject jsonObject = JSON.parseObject(result);
+            String infocode = jsonObject.getString("infocode");
+            if (StrUtil.isNotBlank(infocode) && StrUtil.equals(infocode,"10000")) {
+                String province = jsonObject.getString("province");
+                boolean unknownFlag = StrUtil.equals(province,"[]");
+                ShortLinkLocaleStatsDO shortLinkLocaleStatsDO = ShortLinkLocaleStatsDO.builder()
+                        .province(unknownFlag ? "未知" : province)
+                        .city(unknownFlag ? "未知" : jsonObject.getString("city"))
+                        .adcode(unknownFlag ? "未知" : jsonObject.getString("adcode"))
+                        .cnt(1)
+                        .fullShortUrl(fullShortUrl)
+                        .country("中国")
+                        .date(new Date())
+                        .build();
+                shortLinkLocaleStatsMapper.insert(shortLinkLocaleStatsDO);
+            }
         }catch (Throwable ex) {
             log.error("短链接访问量统计异常",ex);
         }
