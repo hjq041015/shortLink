@@ -303,13 +303,16 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             }else {
                 addResponseCookieTask.run();
             }
+            String actualIp = LinkUtil.getIp(request);
+            Long uipAdded = stringRedisTemplate.opsForSet().add("short-link:stats:uip:" + fullShortUrl, actualIp);
+            boolean uipFirstFlag = uipAdded != null && uipAdded > 0L;
             // 获取当前小时数和星期数，用于统计分析
             int hour = DateUtil.hour(new Date(),true);
             int weekValue = DateUtil.weekOfMonth(new Date());
             ShortLinkAccessStatsDO accessStatsDO = ShortLinkAccessStatsDO.builder()
                     .pv(1)
                     .uv(uvFirstFlag.get() ? 1 : 0)
-                    .uip(1)
+                    .uip(uipFirstFlag ? 1 : 0)
                     .hour(hour)
                     .weekday(weekValue)
                     .fullShortUrl(fullShortUrl)
