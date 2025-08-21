@@ -36,20 +36,43 @@ public class LinkUtil {
      * @param request HTTP请求对象，用于获取请求头信息
      * @return 客户端IP地址字符串
      */
-public static String getIp(HttpServletRequest request) {
-    String ipAddress = request.getHeader("X-Forwarded-For");
+    public static String getIp(HttpServletRequest request) {
+        String ipAddress = request.getHeader("X-Forwarded-For");
 
-    if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-        ipAddress = request.getHeader("Proxy-Client-IP");
-    }
-    if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-        ipAddress = request.getHeader("WL-Proxy-Client-IP");
-    }
-    if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-        ipAddress = request.getRemoteAddr();
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getHeader("Proxy-Client-IP");
+        }
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getRemoteAddr();
+        }
+
+        return ipAddress;
     }
 
-    return ipAddress;
-}
+    /**
+     * 获取用户访问操作系统
+     *
+     * @param request 请求
+     * @return 访问操作系统
+     */
+    public static String getOs(HttpServletRequest request) {
+        String userAgent = request.getHeader("User-Agent");
+        if (userAgent.toLowerCase().contains("windows")) {
+            return "Windows";
+        } else if (userAgent.toLowerCase().contains("mac")) {
+            return "Mac OS";
+        } else if (userAgent.toLowerCase().contains("linux")) {
+            return "Linux";
+        } else if (userAgent.toLowerCase().contains("android")) {
+            return "Android";
+        } else if (userAgent.toLowerCase().contains("iphone") || userAgent.toLowerCase().contains("ipad")) {
+            return "iOS";
+        } else {
+            return "Unknown";
+        }
+    }
 
 }
