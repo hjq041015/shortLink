@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Date;
+
 /**
  * 浏览器统计访问实体
  */
@@ -26,6 +28,11 @@ public class ShortLinkBrowserStatsDO extends BaseDO {
      * 完整短链接
      */
     private String fullShortUrl;
+
+    /**
+     * 日期
+     */
+    private Date date;
 
     /**
      * 访问量

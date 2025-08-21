@@ -365,6 +365,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 ShortLinkBrowserStatsDO shortLinkBrowserStatsDO = ShortLinkBrowserStatsDO.builder()
                         .browser(browser)
                         .fullShortUrl(fullShortUrl)
+                        .date(new Date())
                         .cnt(1)
                         .build();
                 shortLinkBrowserStatsMapper.shortLinkBrowserState(shortLinkBrowserStatsDO);
