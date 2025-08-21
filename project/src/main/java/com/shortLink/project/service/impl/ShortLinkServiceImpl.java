@@ -2,6 +2,7 @@ package com.shortLink.project.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.date.Week;
 import cn.hutool.core.text.StrBuilder;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
@@ -319,9 +320,10 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             String actualIp = LinkUtil.getIp(request);
             Long uipAdded = stringRedisTemplate.opsForSet().add("short-link:stats:uip:" + fullShortUrl, actualIp);
             boolean uipFirstFlag = uipAdded != null && uipAdded > 0L;
-            // 获取当前小时数和星期数，用于统计分析
+            // 获取当前小时数和星期几，用于统计分析
             int hour = DateUtil.hour(new Date(),true);
-            int weekValue = DateUtil.weekOfMonth(new Date());
+            Week week = DateUtil.dayOfWeekEnum(new Date());
+            int weekValue = week.getIso8601Value();
             ShortLinkAccessStatsDO accessStatsDO = ShortLinkAccessStatsDO.builder()
                     .pv(1)
                     .uv(uvFirstFlag.get() ? 1 : 0)
