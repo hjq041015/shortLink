@@ -51,6 +51,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.shortLink.project.common.constant.RedisKeyConstant.*;
 import static com.shortLink.project.common.constant.ShortLinkConstant.AMAP_REMOTE_URL;
@@ -72,6 +73,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final ShortLinkLocaleStatsMapper shortLinkLocaleStatsMapper;
     private final ShortLinkOsStatsMapper shortLinkOsStatsMapper;
     private final ShortLinkBrowserStatsMapper shortLinkBrowserStatsMapper;
+    private final ShortLinkAccessLogsMapper shortLinkAccessLogsMapper;
 
     @Value("${shortLink.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
@@ -284,17 +286,18 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
      * @param response     HTTP响应对象，用于返回响应数据
      */
     private void shortLinkStats(String fullShortUrl, HttpServletRequest request, HttpServletResponse response) {
+        AtomicReference<String> uv = new AtomicReference<>();
         AtomicBoolean uvFirstFlag = new AtomicBoolean();
         Cookie[] cookies = request.getCookies();
         try{
             // 处理UV统计的Cookie任务
             Runnable addResponseCookieTask = () -> {
-                String uv = UUID.randomUUID().toString();
-                Cookie uvCookie = new Cookie("uv",uv);
+                uv.set(UUID.randomUUID().toString());
+                Cookie uvCookie = new Cookie("uv", uv.get());
                 uvCookie.setPath(StrUtil.sub(fullShortUrl,fullShortUrl.indexOf("/"),fullShortUrl.length()));
                 response.addCookie(uvCookie);
                 uvFirstFlag.set(Boolean.TRUE);
-                stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl,uv);
+                stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl,uv.get());
                 stringRedisTemplate.expire("short-link:stats:uv" + fullShortUrl,2,TimeUnit.DAYS);
             };
             // 检查请求中是否包含UV统计Cookie
@@ -345,19 +348,29 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                         .date(new Date())
                         .build();
                 shortLinkLocaleStatsMapper.shortLinkLocaleState(shortLinkLocaleStatsDO);
+                String os = LinkUtil.getOs(request);
                 ShortLinkOsStatsDO shortLinkOsStatsDO = ShortLinkOsStatsDO.builder()
-                        .os(LinkUtil.getOs(request))
+                        .os(os)
                         .cnt(1)
                         .fullShortUrl(fullShortUrl)
                         .date(new Date())
                         .build();
                 shortLinkOsStatsMapper.shortLinkOsState(shortLinkOsStatsDO);
+                String browser = LinkUtil.getBrowser(request);
                 ShortLinkBrowserStatsDO shortLinkBrowserStatsDO = ShortLinkBrowserStatsDO.builder()
-                        .browser(LinkUtil.getBrowser(request))
+                        .browser(browser)
                         .fullShortUrl(fullShortUrl)
                         .cnt(1)
                         .build();
                 shortLinkBrowserStatsMapper.shortLinkBrowserState(shortLinkBrowserStatsDO);
+                ShortLinkAccessLogsDO shortLinkAccessLogsDO =  ShortLinkAccessLogsDO.builder()
+                        .ip(actualIp)
+                        .browser(browser)
+                        .os(os)
+                        .user(uv.get())
+                        .fullShortUrl(fullShortUrl)
+                        .build();
+                shortLinkAccessLogsMapper.insert(shortLinkAccessLogsDO);
             }
         }catch (Throwable ex) {
             log.error("短链接访问量统计异常",ex);
